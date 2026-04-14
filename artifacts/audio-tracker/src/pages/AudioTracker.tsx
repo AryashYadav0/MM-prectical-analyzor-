@@ -92,47 +92,112 @@ function drawLine(canvas: HTMLCanvasElement, pts: Pt[], color: string, minV: num
 
 interface Seg { note: string; hz: number; tStart: number; tEnd: number; dur: number; }
 
-function drawBars(canvas: HTMLCanvasElement, segs: Seg[], totalMs: number) {
+function drawBars(canvas: HTMLCanvasElement, segs: Seg[], _totalMs: number) {
   const ctx = canvas.getContext("2d")!;
   const W = canvas.width, H = canvas.height;
   ctx.fillStyle = "#0a0f1a"; ctx.fillRect(0, 0, W, H);
-  const recent = segs.slice(-14);
+
+  const recent = segs.slice(-8);
+
   if (recent.length === 0) {
-    ctx.fillStyle = "#334155"; ctx.font = "11px monospace"; ctx.textAlign = "center";
-    ctx.fillText("No notes yet — start speaking or playing", W / 2, H / 2); return;
+    ctx.fillStyle = "#334155"; ctx.font = "13px monospace"; ctx.textAlign = "center";
+    ctx.fillText("No notes yet — start speaking or playing", W / 2, H / 2);
+    return;
   }
-  const PL = 36, PR = 6, PT = 8, PB = 20;
-  const GW = W - PL - PR, GH = H - PT - PB;
-  const barH = Math.max(10, Math.min(24, (GH - recent.length * 3) / recent.length));
+
+  // Layout constants
+  const ROW_H = 28;
+  const HEADER_H = 22;
+  const PAD_TOP = 6;
+  const COL_NUM  = 28;   // # column
+  const COL_NOTE = 72;   // Note name column
+  const COL_BAR_START = COL_NUM + COL_NOTE;
+  const COL_BAR_W = W - COL_BAR_START - 120; // bar width area
+  const COL_HZ_W = 68;
+  const COL_DUR_W = 52;
+
+  // Header row
+  ctx.fillStyle = "#1e293b";
+  ctx.fillRect(0, PAD_TOP, W, HEADER_H);
+
+  ctx.fillStyle = "#64748b"; ctx.font = "bold 9px monospace"; ctx.textAlign = "center";
+  ctx.fillText("#",       COL_NUM / 2,                              PAD_TOP + 14);
+  ctx.fillText("NOTE",   COL_NUM + COL_NOTE / 2,                    PAD_TOP + 14);
+  ctx.fillText("DURATION BAR",  COL_BAR_START + COL_BAR_W / 2,     PAD_TOP + 14);
+  ctx.fillText("Hz",     W - COL_DUR_W - COL_HZ_W / 2,             PAD_TOP + 14);
+  ctx.fillText("TIME",   W - COL_DUR_W / 2,                        PAD_TOP + 14);
+
+  // Divider line under header
+  ctx.strokeStyle = "#1e3a5f"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, PAD_TOP + HEADER_H); ctx.lineTo(W, PAD_TOP + HEADER_H); ctx.stroke();
+
+  // Max duration for bar scaling
+  const maxDur = Math.max(...recent.map(s => s.dur), 1);
   const allHz = recent.map(s => s.hz);
   const minHz = Math.min(...allHz), maxHz = Math.max(...allHz);
-  const tMax = Math.max(totalMs, recent[recent.length - 1].tEnd);
 
   recent.forEach((seg, i) => {
-    const x = PL + (seg.tStart / tMax) * GW;
-    const w = Math.max(5, (seg.dur / tMax) * GW);
-    const y = PT + i * (barH + 3);
-    const hue = maxHz === minHz ? 260 : 260 - ((seg.hz - minHz) / (maxHz - minHz)) * 180;
-    ctx.fillStyle = `hsl(${hue},78%,58%)`;
-    ctx.beginPath(); ctx.roundRect(x, y, w, barH, 3); ctx.fill();
+    const rowY = PAD_TOP + HEADER_H + i * ROW_H;
 
-    // Note label on left
-    ctx.fillStyle = "#94a3b8"; ctx.font = `${Math.min(barH - 2, 9)}px monospace`; ctx.textAlign = "right";
-    ctx.fillText(seg.note, PL - 3, y + barH - 2);
+    // Alternate row background
+    ctx.fillStyle = i % 2 === 0 ? "#0d1420" : "#0a1018";
+    ctx.fillRect(0, rowY, W, ROW_H);
 
-    // Content inside bar
-    if (w > 40) {
-      ctx.fillStyle = "#0a0f1a"; ctx.font = `${Math.min(barH - 2, 9)}px monospace`; ctx.textAlign = "left";
-      const durStr = seg.dur >= 1000 ? `${(seg.dur / 1000).toFixed(1)}s` : `${seg.dur}ms`;
-      ctx.fillText(`${Math.round(seg.hz)}Hz  ${durStr}`, x + 4, y + barH - 2);
-    }
+    const cy = rowY + ROW_H / 2 + 4; // text baseline center
+
+    // Hue: low note = blue/purple, high = orange/red
+    const hue = maxHz === minHz ? 200 : 260 - ((seg.hz - minHz) / (maxHz - minHz)) * 200;
+    const noteColor = `hsl(${hue}, 80%, 65%)`;
+
+    // Row number
+    ctx.fillStyle = "#475569"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+    ctx.fillText(`${segs.length - recent.length + i + 1}`, COL_NUM / 2, cy);
+
+    // Note name — big & bold
+    ctx.fillStyle = noteColor; ctx.font = "bold 13px monospace"; ctx.textAlign = "center";
+    ctx.fillText(seg.note, COL_NUM + COL_NOTE / 2, cy);
+
+    // Duration bar (background track)
+    const barY = rowY + 8;
+    const barH = ROW_H - 16;
+    ctx.fillStyle = "#1e293b";
+    ctx.beginPath(); ctx.roundRect(COL_BAR_START + 6, barY, COL_BAR_W - 12, barH, 3); ctx.fill();
+
+    // Duration bar (fill)
+    const fillW = Math.max(6, ((seg.dur / maxDur) * (COL_BAR_W - 12)));
+    ctx.fillStyle = noteColor;
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.roundRect(COL_BAR_START + 6, barY, fillW, barH, 3); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Duration label inside/beside bar
+    const durStr = seg.dur >= 1000
+      ? `${(seg.dur / 1000).toFixed(2)}s`
+      : `${seg.dur}ms`;
+    ctx.fillStyle = fillW > 50 ? "#0a0f1a" : "#94a3b8";
+    ctx.font = "bold 9px monospace"; ctx.textAlign = fillW > 50 ? "left" : "left";
+    ctx.fillText(durStr, COL_BAR_START + 10, cy);
+
+    // Hz value
+    ctx.fillStyle = "#e2e8f0"; ctx.font = "10px monospace"; ctx.textAlign = "right";
+    ctx.fillText(`${Math.round(seg.hz)} Hz`, W - COL_DUR_W - 4, cy);
+
+    // Start time
+    const tStr = seg.tStart >= 1000
+      ? `${(seg.tStart / 1000).toFixed(1)}s`
+      : `${Math.round(seg.tStart)}ms`;
+    ctx.fillStyle = "#64748b"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+    ctx.fillText(tStr, W - COL_DUR_W / 2, cy);
+
+    // Row separator
+    ctx.strokeStyle = "#1e2d40"; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(0, rowY + ROW_H); ctx.lineTo(W, rowY + ROW_H); ctx.stroke();
   });
 
-  // Time axis
-  for (let i = 0; i <= 5; i++) {
-    const x = PL + (GW * i) / 5;
-    ctx.fillStyle = "#334155"; ctx.font = "9px monospace"; ctx.textAlign = "center";
-    ctx.fillText(`${((tMax * i) / 5 / 1000).toFixed(1)}s`, x, H - PB + 13);
+  // Column dividers (subtle)
+  ctx.strokeStyle = "#1e2d40"; ctx.lineWidth = 0.5;
+  for (const x of [COL_NUM, COL_NUM + COL_NOTE, COL_BAR_START + COL_BAR_W]) {
+    ctx.beginPath(); ctx.moveTo(x, PAD_TOP); ctx.lineTo(x, H); ctx.stroke();
   }
 }
 
@@ -374,8 +439,8 @@ export default function AudioTracker() {
 
         {/* Note duration bars */}
         <Card label="NOTE DURATION — Each note · Hz · Length">
-          <canvas ref={barRef} width={880} height={118}
-            style={{ width: "100%", height: 118, borderRadius: 6, display: "block" }} />
+          <canvas ref={barRef} width={880} height={262}
+            style={{ width: "100%", height: 262, borderRadius: 6, display: "block" }} />
         </Card>
 
         {/* Controls */}
