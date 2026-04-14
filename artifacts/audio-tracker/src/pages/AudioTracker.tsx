@@ -307,7 +307,7 @@ export default function AudioTracker() {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 16px" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#22d3ee", letterSpacing: 2, margin: 0 }}>
-            AUDIO TRACKER
+            MUSIC MASTER AUDIO TRACKER
           </h1>
           <p style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
             Real-time pitch, Hz & waveform analyzer
