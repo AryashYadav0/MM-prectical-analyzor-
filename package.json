@@ -5,9 +5,8 @@
   "scripts": {
     "dev": "node run-dev.mjs",
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "build": "corepack pnpm --filter @workspace/audio-tracker run build",
+    "typecheck": "corepack pnpm --filter @workspace/audio-tracker run typecheck"
   },
   "private": true,
   "devDependencies": {
